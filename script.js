@@ -20,43 +20,14 @@ async function buscarPelicula() {
 
     results.innerHTML = "Buscando...";
 
-    const url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}&language=es-MX`;
+    const url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}`;
 
     try {
 
         const response = await fetch(url);
         const data = await response.json();
 
-        results.innerHTML = "";
-
-        if (!data.results || data.results.length === 0) {
-            results.innerHTML = "No se encontraron resultados.";
-            return;
-        }
-
-        data.results.forEach(movie => {
-
-            const div = document.createElement("div");
-
-            div.className = "result";
-
-            div.innerHTML = `
-                <strong>${movie.title}</strong><br>
-                ${movie.release_date || "Sin fecha"}<br>
-                TMDB ID: <strong>${movie.id}</strong>
-            `;
-
-            div.onclick = async () => {
-
-                await navigator.clipboard.writeText(String(movie.id));
-
-                alert("TMDB ID copiado: " + movie.id);
-
-            };
-
-            results.appendChild(div);
-
-        });
+        mostrar(data.results);
 
     } catch (error) {
 
@@ -65,5 +36,67 @@ async function buscarPelicula() {
         results.innerHTML = "Error al consultar TMDB.";
 
     }
+
+}
+
+function mostrar(lista) {
+
+    results.innerHTML = "";
+
+    if (!lista || lista.length === 0) {
+
+        results.innerHTML = "No se encontraron resultados.";
+
+        return;
+
+    }
+
+    lista.forEach(movie => {
+
+        const poster = movie.poster_path
+            ? `https://image.tmdb.org/t/p/w154${movie.poster_path}`
+            : "https://via.placeholder.com/70x105?text=No+Image";
+
+        const div = document.createElement("div");
+
+        div.className = "result";
+
+        div.innerHTML = `
+            <div style="
+                display:flex;
+                align-items:center;
+                gap:15px;
+            ">
+
+                <img
+                    src="${poster}"
+                    alt="${movie.title}"
+                    style="
+                        width:70px;
+                        border-radius:6px;
+                        flex-shrink:0;
+                    "
+                >
+
+                <div>
+                    <strong>${movie.title}</strong><br>
+                    ${movie.release_date || "Sin fecha"}<br>
+                    TMDB ID: <strong>${movie.id}</strong>
+                </div>
+
+            </div>
+        `;
+
+        div.onclick = async () => {
+
+            await navigator.clipboard.writeText(String(movie.id));
+
+            alert("TMDB ID copiado: " + movie.id);
+
+        };
+
+        results.appendChild(div);
+
+    });
 
 }
