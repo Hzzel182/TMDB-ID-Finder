@@ -1,80 +1,69 @@
-const audio = document.getElementById('audio');
-const playPauseBtn = document.getElementById('play-pause-btn');
-const playPauseIcon = document.getElementById('play-pause-icon');
-const repeatBtn = document.getElementById('repeat-btn');
-const progressBar = document.getElementById('progress-bar');
-const progressContainer = document.getElementById('progress-container');
+const API_KEY = "0ba50b1a0e817c1f5e8ba94951a3a3c2";
 
-// Capturar parámetros dinámicos desde la URL
-const urlParams = new URLSearchParams(window.location.search);
-const songTitle = urlParams.get('title');
-const songArtist = urlParams.get('artist');
-const songFile = urlParams.get('song');
-const coverFile = urlParams.get('cover');
+const buscar = document.getElementById("buscar");
+const input = document.getElementById("search");
+const results = document.getElementById("results");
 
-// Aplicar cambios si vienen definidos en el link
-if (songTitle) document.querySelector('.track-title').textContent = songTitle;
-if (songArtist) document.querySelector('.track-artist').textContent = songArtist;
-if (coverFile) document.getElementById('cover-img').src = coverFile;
+buscar.addEventListener("click", buscarPelicula);
 
-if (songFile) {
-    audio.src = songFile;
-    audio.load(); // Carga de forma limpia y directa el nuevo audio
+input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        buscarPelicula();
+    }
+});
+
+async function buscarPelicula() {
+
+    const texto = input.value.trim();
+
+    if (!texto) return;
+
+    results.innerHTML = "Buscando...";
+
+    const url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}&language=es-MX`;
+
+    try {
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        results.innerHTML = "";
+
+        if (!data.results || data.results.length === 0) {
+            results.innerHTML = "No se encontraron resultados.";
+            return;
+        }
+
+        data.results.forEach(movie => {
+
+            const div = document.createElement("div");
+
+            div.className = "result";
+
+            div.innerHTML = `
+                <strong>${movie.title}</strong><br>
+                ${movie.release_date || "Sin fecha"}<br>
+                TMDB ID: <strong>${movie.id}</strong>
+            `;
+
+            div.onclick = async () => {
+
+                await navigator.clipboard.writeText(String(movie.id));
+
+                alert("TMDB ID copiado: " + movie.id);
+
+            };
+
+            results.appendChild(div);
+
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        results.innerHTML = "Error al consultar TMDB.";
+
+    }
+
 }
-
-// Inicializar estado de reproducción y autoplay
-document.addEventListener('DOMContentLoaded', () => {
-    audio.volume = 0.8;
-    audio.play().then(() => {
-        playPauseIcon.classList.remove('fa-play');
-        playPauseIcon.classList.add('fa-pause');
-    }).catch(error => {
-        console.log("Autoplay bloqueado por políticas del navegador:", error);
-        playPauseIcon.classList.remove('fa-pause');
-        playPauseIcon.classList.add('fa-play');
-    });
-});
-
-// Control de Play / Pause
-playPauseBtn.addEventListener('click', () => {
-    if (audio.paused) {
-        audio.play();
-        playPauseIcon.classList.remove('fa-play');
-        playPauseIcon.classList.add('fa-pause');
-    } else {
-        audio.pause();
-        playPauseIcon.classList.remove('fa-pause');
-        playPauseIcon.classList.add('fa-play');
-    }
-});
-
-// Control de Repetir (Loop)
-repeatBtn.addEventListener('click', () => {
-    audio.loop = !audio.loop;
-    repeatBtn.classList.toggle('active', audio.loop);
-});
-
-// Actualizar barra de progreso
-audio.addEventListener('timeupdate', () => {
-    const { currentTime, duration } = audio;
-    if (duration) {
-        const progressPercent = (currentTime / duration) * 100;
-        progressBar.style.width = `${progressPercent}%`;
-    }
-});
-
-// Permitir saltar en la canción haciendo clic en la barra
-progressContainer.addEventListener('click', (e) => {
-    const width = progressContainer.clientWidth;
-    const clickX = e.offsetX;
-    const duration = audio.duration;
-    audio.currentTime = (clickX / width) * duration;
-});
-
-// Sincronizar icono si termina y el loop está desactivado
-audio.addEventListener('ended', () => {
-    if (!audio.loop) {
-        playPauseIcon.classList.remove('fa-pause');
-        playPauseIcon.classList.add('fa-play');
-    }
-});
