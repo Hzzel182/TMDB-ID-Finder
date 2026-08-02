@@ -1,12 +1,12 @@
 const API_KEY = "0ba50b1a0e817c1f5e8ba94951a3a3c2";
 
-const buscar = document.getElementById("buscar");
 const input = document.getElementById("search");
+const buscar = document.getElementById("buscar");
 const results = document.getElementById("results");
 
-let timeoutBusqueda;
+let timeoutBusqueda = null;
 
-buscar.addEventListener("click", buscarPeliculas);
+buscar.addEventListener("click", buscarContenido);
 
 input.addEventListener("input", () => {
 
@@ -20,7 +20,7 @@ input.addEventListener("input", () => {
 
     }
 
-    timeoutBusqueda=setTimeout(buscarPeliculas,300);
+    timeoutBusqueda=setTimeout(buscarContenido,300);
 
 });
 
@@ -30,13 +30,13 @@ input.addEventListener("keydown",(e)=>{
 
         clearTimeout(timeoutBusqueda);
 
-        buscarPeliculas();
+        buscarContenido();
 
     }
 
 });
 
-async function buscarPeliculas(){
+async function buscarContenido(){
 
     const texto=input.value.trim();
 
@@ -48,13 +48,21 @@ async function buscarPeliculas(){
 
         const response=await fetch(
 
-            `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}&language=es-MX`
+            `https://api.themoviedb.org/3/search/multi?api_key=${API_KEY}&language=es-MX&query=${encodeURIComponent(texto)}`
 
         );
 
         const data=await response.json();
 
-        mostrarResultados(data.results);
+        const resultados=data.results.filter(item=>
+
+            item.media_type==="movie" ||
+
+            item.media_type==="tv"
+
+        );
+
+        await mostrarResultados(resultados);
 
     }
 
@@ -68,11 +76,17 @@ async function buscarPeliculas(){
 
 }
 
-async function obtenerDetalles(id){
+async function obtenerDetalles(tipo,id){
+
+    const endpoint=tipo==="movie"
+
+        ? "movie"
+
+        : "tv";
 
     const response=await fetch(
 
-        `https://api.themoviedb.org/3/movie/${id}?api_key=${API_KEY}&language=es-MX`
+        `https://api.themoviedb.org/3/${endpoint}/${id}?api_key=${API_KEY}&language=es-MX`
 
     );
 
@@ -88,21 +102,31 @@ async function copiar(texto){
 
     }
 
-    catch(e){
+    catch(error){
 
-        console.error(e);
+        console.error(error);
 
     }
 
 }
 
-function limpiar(){
+function feedbackBoton(boton,textoOriginal){
 
-    results.innerHTML="";
+    boton.style.background="#22c55e";
 
-    input.value="";
+    boton.style.color="white";
 
-    input.focus();
+    boton.textContent="✔";
+
+    setTimeout(()=>{
+
+        boton.style.background="";
+
+        boton.style.color="";
+
+        boton.textContent=textoOriginal;
+
+    },500);
 
 }
 
@@ -110,7 +134,7 @@ async function mostrarResultados(lista){
 
     results.innerHTML="";
 
-    if(!lista || lista.length===0){
+    if(lista.length===0){
 
         results.innerHTML="No se encontraron resultados.";
 
@@ -118,28 +142,60 @@ async function mostrarResultados(lista){
 
     }
 
-    for(const movie of lista){
+    for(const item of lista){
 
-        const detalles=await obtenerDetalles(movie.id);
+        const detalles=await obtenerDetalles(item.media_type,item.id);
 
-        const poster=movie.poster_path
-            ? `https://image.tmdb.org/t/p/w154${movie.poster_path}`
-            : `https://via.placeholder.com/80x120?text=No+Image`;
-                const tituloOriginal = detalles.original_title || movie.original_title || movie.title;
+        const poster=item.poster_path
 
-        const tituloEspanol = detalles.title || movie.title;
+            ? `https://image.tmdb.org/t/p/w154${item.poster_path}`
 
-        const pais = detalles.production_countries.length
+            : "https://via.placeholder.com/90x135?text=No+Image";
+                const tituloOriginal = detalles.original_title ||
+                               detalles.original_name ||
+                               item.original_title ||
+                               item.original_name ||
+                               "-";
+
+        const tituloEspanol = detalles.title ||
+                              detalles.name ||
+                              item.title ||
+                              item.name ||
+                              "-";
+
+        const pais = detalles.production_countries?.length
             ? detalles.production_countries
-                  .map(p => p.iso_3166_1)
-                  .join(", ")
-            : "N/D";
+                .map(p => p.iso_3166_1)
+                .join(", ")
+            : detalles.origin_country?.join(", ") || "-";
 
-        const generos = detalles.genres.length
+        const generos = detalles.genres?.length
             ? detalles.genres
-                  .map(g => g.name)
-                  .join(" • ")
-            : "N/D";
+                .map(g => g.name)
+                .join(" • ")
+            : "-";
+
+        const anio = (
+            detalles.release_date ||
+            detalles.first_air_date ||
+            ""
+        ).substring(0,4);
+
+        const tipo = item.media_type==="movie"
+            ? "Movie"
+            : "TV Series";
+
+        const posterOriginal = item.poster_path
+            ? `https://image.tmdb.org/t/p/original${item.poster_path}`
+            : "";
+
+        const textoCompleto =
+`Original: ${tituloOriginal}
+Español: ${tituloEspanol}
+ID: ${item.id}
+País: ${pais}
+Géneros: ${generos}
+Tipo: ${tipo}`;
 
         const div=document.createElement("div");
 
@@ -147,132 +203,182 @@ async function mostrarResultados(lista){
 
         div.innerHTML=`
 
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            align-items:flex-start;
-            gap:16px;
-        ">
+<div style="
+display:flex;
+justify-content:space-between;
+align-items:flex-start;
+gap:18px;
+">
 
-            <div style="
-                display:flex;
-                gap:15px;
-                flex:1;
-            ">
+<div style="
+display:flex;
+gap:16px;
+flex:1;
+">
 
-                <img
-                    src="${poster}"
-                    alt="${tituloOriginal}"
-                    style="
-                        width:80px;
-                        border-radius:8px;
-                        flex-shrink:0;
-                    "
-                >
+<a
+href="${posterOriginal}"
+target="_blank"
+title="Abrir portada"
+>
 
-                <div>
+<img
+src="${poster}"
+style="
+width:90px;
+border-radius:8px;
+display:block;
+cursor:pointer;
+transition:.2s;
+"
+onmouseover="this.style.transform='scale(1.03)'"
+onmouseout="this.style.transform='scale(1)'"
+>
 
-                    <div style="
-                        font-size:18px;
-                        font-weight:bold;
-                    ">
-                        ${tituloOriginal}
-                    </div>
+</a>
 
-                    <div style="
-                        color:#BDBDBD;
-                        margin-bottom:8px;
-                    ">
-                        ${tituloEspanol}
-                    </div>
+<div style="flex:1;">
 
-                    <div>🆔 <b>${movie.id}</b></div>
+<div style="
+font-size:18px;
+font-weight:700;
+">
 
-                    <div>🌍 ${pais}</div>
+${tituloOriginal}
 
-                    <div>🎭 ${generos}</div>
+${anio ? `(${anio})` : ""}
 
-                </div>
+</div>
 
-            </div>
+<div style="
+margin-top:4px;
+margin-bottom:10px;
+color:#BDBDBD;
+">
 
-            <div style="
-                display:flex;
-                flex-direction:column;
-                gap:8px;
-            ">
+${tituloEspanol}
 
-                <button class="copy-original"
-                    data-text="${tituloOriginal}"
-                    style="
-                        width:42px;
-                        height:42px;
-                        cursor:pointer;
-                    ">
-                    🇺🇸
-                </button>
+</div>
 
-                <button class="copy-spanish"
-                    data-text="${tituloEspanol}"
-                    style="
-                        width:42px;
-                        height:42px;
-                        cursor:pointer;
-                    ">
-                    🇲🇽
-                </button>
+<div>
 
-                <button class="copy-id"
-                    data-text="${movie.id}"
-                    style="
-                        width:42px;
-                        height:42px;
-                        cursor:pointer;
-                    ">
-                    🆔
-                </button>
+ID:
+<b>${item.id}</b>
 
-            </div>
+</div>
 
-        </div>
+<div>
 
-        `;
-                const btnOriginal = div.querySelector(".copy-original");
-        const btnSpanish = div.querySelector(".copy-spanish");
-        const btnID = div.querySelector(".copy-id");
+País:
+${pais}
 
-        btnOriginal.addEventListener("click", async (e) => {
+</div>
 
+<div>
+
+Géneros:
+${generos}
+
+</div>
+
+<div>
+
+Tipo:
+${tipo}
+
+</div>
+
+</div>
+
+</div>
+
+<div
+style="
+display:flex;
+flex-direction:column;
+gap:8px;
+"
+>
+
+<button class="btn-en">EN</button>
+
+<button class="btn-es">ES</button>
+
+<button class="btn-id">ID</button>
+
+<button class="btn-img">IMG</button>
+
+<button class="btn-copy">COPY</button>
+
+</div>
+
+</div>
+
+`;
+                const btnEN = div.querySelector(".btn-en");
+        const btnES = div.querySelector(".btn-es");
+        const btnID = div.querySelector(".btn-id");
+        const btnIMG = div.querySelector(".btn-img");
+        const btnCOPY = div.querySelector(".btn-copy");
+
+        btnEN.addEventListener("click", async (e)=>{
+
+            e.preventDefault();
             e.stopPropagation();
 
             await copiar(tituloOriginal);
 
-            limpiar();
+            feedbackBoton(btnEN,"EN");
 
         });
 
-        btnSpanish.addEventListener("click", async (e) => {
+        btnES.addEventListener("click", async (e)=>{
 
+            e.preventDefault();
             e.stopPropagation();
 
             await copiar(tituloEspanol);
 
-            limpiar();
+            feedbackBoton(btnES,"ES");
 
         });
 
-        btnID.addEventListener("click", async (e) => {
+        btnID.addEventListener("click", async (e)=>{
 
+            e.preventDefault();
             e.stopPropagation();
 
-            await copiar(String(movie.id));
+            await copiar(String(item.id));
 
-            limpiar();
+            feedbackBoton(btnID,"ID");
+
+        });
+
+        btnIMG.addEventListener("click", async (e)=>{
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            if(posterOriginal){
+
+                await copiar(posterOriginal);
+
+                feedbackBoton(btnIMG,"IMG");
+
+            }
+
+        });
+
+        btnCOPY.addEventListener("click", async (e)=>{
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            await copiar(textoCompleto);
+
+            feedbackBoton(btnCOPY,"COPY");
 
         });
 
         results.appendChild(div);
-
-    }
-
-}
+        
