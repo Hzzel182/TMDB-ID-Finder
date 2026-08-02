@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reproductor Notion</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="player-container">
+        <div class="album-art">
+            <img src="cover.jpg" alt="Cover" id="cover-img">
+        </div>
+        <div class="track-info">
+            <div class="track-title">Eternally</div>
+            <div class="track-artist">Ji Pyoung Kwon</div>
+            <div class="progress-container" id="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+        </div>
+        <div class="controls">
+            <button id="play-pause-btn" class="control-btn" aria-label="Play/Pause">
+                <i class="fas fa-play" id="play-pause-icon"></i>
+            </button>
+            <button id="repeat-btn" class="control-btn active" aria-label="Repeat">
+                <i class="fas fa-redo"></i>
+            </button>
+        </div>
+        <audio id="audio" src="song.mp3" autoplay loop></audio>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
