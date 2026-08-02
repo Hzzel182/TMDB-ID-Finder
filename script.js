@@ -18,9 +18,104 @@ const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 // DOM Elements
 const searchInput = document.getElementById('searchInput');
 const resultsContainer = document.getElementById('resultsContainer');
+const folderStatus = document.getElementById('folderStatus');
+const selectFolderBtn = document.getElementById('selectFolderBtn');
 
 let debounceTimer = null;
 let currentAbortController = null;
+let savedDirHandle = null;
+
+// IndexedDB helper configuration for saving directory handles persistently
+const DB_NAME = 'TMDBCompanionDB';
+const STORE_NAME = 'settings';
+const HANDLE_KEY = 'downloadDirHandle';
+
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveDirHandleToIDB(handle) {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(handle, HANDLE_KEY);
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (err) {
+        console.error('Error saving handle to IndexedDB:', err);
+        return false;
+    }
+}
+
+async function getDirHandleFromIDB() {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const request = tx.objectStore(STORE_NAME).get(HANDLE_KEY);
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.error('Error reading handle from IndexedDB:', err);
+        return null;
+    }
+}
+
+async function verifyPermission(fileHandle, readWrite) {
+    const options = {};
+    if (readWrite) {
+        options.mode = 'readwrite';
+    }
+    if ((await fileHandle.queryPermission(options)) === 'granted') {
+        return true;
+    }
+    if ((await fileHandle.requestPermission(options)) === 'granted') {
+        return true;
+    }
+    return false;
+}
+
+// Initialize folder settings on load
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!window.showDirectoryPicker) {
+        folderStatus.textContent = 'Carpeta: Descargas (Android/Automático)';
+        selectFolderBtn.style.display = 'none';
+        return;
+    }
+
+    savedDirHandle = await getDirHandleFromIDB();
+    if (savedDirHandle) {
+        folderStatus.textContent = `Carpeta: ${savedDirHandle.name}`;
+    }
+
+    selectFolderBtn.addEventListener('click', async () => {
+        try {
+            const handle = await window.showDirectoryPicker();
+            if (handle) {
+                savedDirHandle = handle;
+                await saveDirHandleToIDB(handle);
+                folderStatus.textContent = `Carpeta: ${handle.name}`;
+            }
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error('Error selecting directory:', err);
+            }
+        }
+    });
+});
 
 // Event Listeners
 searchInput.addEventListener('input', (e) => {
@@ -284,8 +379,6 @@ function createCardElement(item) {
 
     const btnEN = createActionButton('EN', () => item.originalName);
     const btnES = createActionButton('ES', () => item.localName);
-    
-    // El botón ID ahora copia directamente el enlace completo listo para el widget de Notion
     const btnID = createActionButton('ID', () => `https://hzzel182.github.io/Cast/?id=${item.id}`);
     
     const btnIMG = createActionButton('IMG', async () => {
@@ -310,6 +403,7 @@ function createCardElement(item) {
 
 /**
  * Downloads poster resized to exactly 720x1080, WebP format (quality 0.8) with rounded corners
+ * Supports custom saved directory handle with automatic fallback.
  */
 async function downloadRoundedWebpPoster(item) {
     if (!item.originalPosterPath) return;
@@ -344,20 +438,42 @@ async function downloadRoundedWebpPoster(item) {
                 
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 
-                canvas.toBlob((blob) => {
+                canvas.toBlob(async (blob) => {
                     if (!blob) {
                         reject(new Error('Canvas blob creation failed'));
                         return;
                     }
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
+                    
                     const safeName = item.originalName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                    a.download = `${safeName}_poster_720x1080.webp`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                    const fileName = `${safeName}_poster_720x1080.webp`;
+                    let savedSuccessfully = false;
+
+                    if (savedDirHandle && window.showDirectoryPicker) {
+                        try {
+                            const hasPermission = await verifyPermission(savedDirHandle, true);
+                            if (hasPermission) {
+                                const fileHandle = await savedDirHandle.getFileHandle(fileName, { create: true });
+                                const writable = await fileHandle.createWritable();
+                                await writable.write(blob);
+                                await writable.close();
+                                savedSuccessfully = true;
+                            }
+                        } catch (dirErr) {
+                            console.warn('Fallback to standard download due to directory access error:', dirErr);
+                        }
+                    }
+
+                    if (!savedSuccessfully) {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }
+
                     resolve();
                 }, 'image/webp', 0.8);
             };
