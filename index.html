@@ -3,26 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TMDB ID Finder</title>
+    <title>TMDB Companion</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<div class="container">
-    <h1>🎬 TMDB ID Finder</h1>
-
-    <input
-        id="search"
-        type="text"
-        placeholder="Escribe una película..."
-    >
-
-    <button id="buscar">Buscar</button>
-
-    <div id="results"></div>
-</div>
-
-<script src="script.js"></script>
-
+    <div class="app-container">
+        <header class="app-header">
+            <h1>TMDB Companion</h1>
+            <div class="search-wrapper">
+                <input type="text" id="searchInput" placeholder="Buscar películas o series..." autocomplete="off" autofocus>
+            </div>
+        </header>
+        <main id="resultsContainer" class="results-container">
+            <div class="initial-message">Comienza a escribir para buscar en TMDB...</div>
+        </main>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
