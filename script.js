@@ -84,7 +84,7 @@ async function performSearch(query) {
         return;
     }
 
-try {
+    try {
         const url = `${BASE_URL}/search/multi?api_key=${API_KEY}&language=en-US&query=${encodeURIComponent(query)}&page=1&include_adult=false`;
         const response = await fetch(url, { signal: currentAbortController.signal });
         
@@ -297,7 +297,13 @@ function createCardElement(item) {
     const btnEN = createActionButton('EN', () => item.originalName);
     const btnES = createActionButton('ES', () => item.localName);
     const btnID = createActionButton('ID', () => String(item.id));
-    const btnIMG = createActionButton('IMG', () => item.originalPosterPath);
+    
+    // IMG button now downloads the poster image directly with rounded corners & transparent background as a PNG file
+    const btnIMG = createActionButton('IMG', async () => {
+        await downloadRoundedPoster(item);
+        return item.originalPosterPath;
+    });
+
     const btnCOPY = createActionButton('COPY', () => generateCopyBlock(item));
 
     buttons.appendChild(btnEN);
@@ -314,20 +320,89 @@ function createCardElement(item) {
 }
 
 /**
- * Creates an action button with copy feedback animation
+ * Downloads poster as a PNG with rounded corners and transparent background
  */
-function createActionButton(text, getDataFn) {
+async function downloadRoundedPoster(item) {
+    if (!item.originalPosterPath) return;
+    try {
+        await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                
+                // Radius proportional to image size for clean rounded corners
+                const radius = Math.min(canvas.width, canvas.height) * 0.04;
+                
+                ctx.beginPath();
+                if (typeof ctx.roundRect === 'function') {
+                    ctx.roundRect(0, 0, canvas.width, canvas.height, radius);
+                } else {
+                    ctx.moveTo(radius, 0);
+                    ctx.lineTo(canvas.width - radius, 0);
+                    ctx.quadraticCurveTo(canvas.width, 0, canvas.width, radius);
+                    ctx.lineTo(canvas.width, canvas.height - radius);
+                    ctx.quadraticCurveTo(canvas.width, canvas.height, canvas.width - radius, canvas.height);
+                    ctx.lineTo(radius, canvas.height);
+                    ctx.quadraticCurveTo(0, canvas.height, 0, canvas.height - radius);
+                    ctx.lineTo(0, radius);
+                    ctx.quadraticCurveTo(0, 0, radius, 0);
+                }
+                ctx.closePath();
+                ctx.clip();
+                
+                ctx.drawImage(img, 0, 0);
+                
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        reject(new Error('Canvas blob creation failed'));
+                        return;
+                    }
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const safeName = item.originalName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                    a.download = `${safeName}_poster.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    resolve();
+                }, 'image/png');
+            };
+            img.onerror = () => reject(new Error('Image load failed'));
+            img.src = item.originalPosterPath;
+        });
+    } catch (err) {
+        console.error('Error generating rounded poster:', err);
+        window.open(item.originalPosterPath, '_blank');
+    }
+}
+
+/**
+ * Creates an action button with copy/action feedback animation
+ */
+function createActionButton(text, actionFn) {
     const btn = document.createElement('button');
     btn.className = 'action-btn';
     btn.textContent = text;
     
     btn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const data = getDataFn();
-        if (!data || data === '—') return;
-
-        const success = await copyToClipboard(data);
-        if (success) {
+        const result = await actionFn();
+        
+        // If it's not the IMG download button, copy the result to clipboard
+        if (text !== 'IMG') {
+            if (!result || result === '—') return;
+            const success = await copyToClipboard(result);
+            if (success) {
+                triggerSuccessAnimation(btn, text);
+            }
+        } else {
+            // For IMG, trigger success animation upon triggering download
             triggerSuccessAnimation(btn, text);
         }
     });
