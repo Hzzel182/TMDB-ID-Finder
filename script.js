@@ -91,10 +91,8 @@ async function performSearch(query) {
         if (!response.ok) throw new Error('Error en la respuesta de la red');
         
         const data = await response.json();
-        // Filter out persons as requested
         const filteredResults = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
 
-        // Fetch additional details in parallel using Promise.all for enriched data
         const detailedResults = await Promise.all(
             filteredResults.map(item => fetchItemDetails(item.id, item.media_type))
         );
@@ -143,16 +141,12 @@ async function fetchItemDetails(id, mediaType) {
 function formatItemData(dataEn, dataEs, dataImages, mediaType) {
     const isMovie = mediaType === 'movie';
     
-    // Ensure English name for primary/EN button (no native foreign scripts like Japanese/Korean)
     const englishName = isMovie ? (dataEn.title || dataEn.original_title || '—') : (dataEn.name || dataEn.original_name || '—');
-    
-    // Proper Spanish localized title
     const spanishName = isMovie ? (dataEs.title || dataEs.original_title || englishName) : (dataEs.name || dataEs.original_name || englishName);
     
     const releaseDate = isMovie ? (dataEn.release_date || dataEs.release_date) : (dataEn.first_air_date || dataEs.first_air_date);
     const year = releaseDate ? releaseDate.split('-')[0] : '—';
     
-    // Full English country names (no abbreviations)
     let countries = '—';
     const rawCountries = dataEn.production_countries || dataEs.production_countries || [];
     const rawOrigin = dataEn.origin_country || dataEs.origin_country || [];
@@ -177,7 +171,6 @@ function formatItemData(dataEn, dataEs, dataImages, mediaType) {
         countries = countryNames.join(', ');
     }
 
-    // Genres (localized to Spanish via dataEs)
     let genres = '—';
     const genresSource = (dataEs.genres && dataEs.genres.length > 0) ? dataEs.genres : (dataEn.genres || []);
     if (genresSource.length > 0) {
@@ -186,7 +179,6 @@ function formatItemData(dataEn, dataEs, dataImages, mediaType) {
 
     const type = isMovie ? 'Movie' : 'TV Series';
 
-    // Poster with English lettering/text preferred
     let posterPath = '';
     let originalPosterPath = '';
 
@@ -201,7 +193,6 @@ function formatItemData(dataEn, dataEs, dataImages, mediaType) {
         }
     }
 
-    // Fallback if images endpoint didn't provide paths
     if (!posterPath && dataEn.poster_path) {
         posterPath = `${POSTER_THUMB_URL}${dataEn.poster_path}`;
         originalPosterPath = `${IMAGE_BASE_URL}${dataEn.poster_path}`;
@@ -248,7 +239,6 @@ function createCardElement(item) {
     const card = document.createElement('div');
     card.className = 'card';
 
-    // Poster element
     const posterContainer = document.createElement('div');
     posterContainer.className = 'card-poster-container';
     
@@ -265,7 +255,6 @@ function createCardElement(item) {
         });
     }
 
-    // Content element
     const content = document.createElement('div');
     content.className = 'card-content';
 
@@ -290,7 +279,6 @@ function createCardElement(item) {
         </div>
     `;
 
-    // Buttons element
     const buttons = document.createElement('div');
     buttons.className = 'card-buttons';
 
@@ -298,7 +286,6 @@ function createCardElement(item) {
     const btnES = createActionButton('ES', () => item.localName);
     const btnID = createActionButton('ID', () => String(item.id));
     
-    // IMG button downloads the poster as .webp in quality 0.8 with rounded corners
     const btnIMG = createActionButton('IMG', async () => {
         await downloadRoundedWebpPoster(item);
         return item.originalPosterPath;
@@ -320,7 +307,7 @@ function createCardElement(item) {
 }
 
 /**
- * Downloads poster as WebP format (quality 0.8) with rounded corners
+ * Downloads poster resized to exactly 720x1080, WebP format (quality 0.8) with rounded corners
  */
 async function downloadRoundedWebpPoster(item) {
     if (!item.originalPosterPath) return;
@@ -330,11 +317,10 @@ async function downloadRoundedWebpPoster(item) {
             img.crossOrigin = 'anonymous';
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
+                canvas.width = 720;
+                canvas.height = 1080;
                 const ctx = canvas.getContext('2d');
                 
-                // Proportional rounded corners radius
                 const radius = Math.min(canvas.width, canvas.height) * 0.04;
                 
                 ctx.beginPath();
@@ -354,9 +340,8 @@ async function downloadRoundedWebpPoster(item) {
                 ctx.closePath();
                 ctx.clip();
                 
-                ctx.drawImage(img, 0, 0);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 
-                // Export as webp with 0.8 quality for lightweight and optimized files
                 canvas.toBlob((blob) => {
                     if (!blob) {
                         reject(new Error('Canvas blob creation failed'));
@@ -366,7 +351,7 @@ async function downloadRoundedWebpPoster(item) {
                     const a = document.createElement('a');
                     a.href = url;
                     const safeName = item.originalName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                    a.download = `${safeName}_poster.webp`;
+                    a.download = `${safeName}_poster_720x1080.webp`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
