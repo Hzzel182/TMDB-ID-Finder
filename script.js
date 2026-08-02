@@ -6,27 +6,27 @@ const results = document.getElementById("results");
 
 let timeoutBusqueda;
 
-// El botón sigue funcionando por si quieres usarlo
 buscar.addEventListener("click", buscarPelicula);
 
-// Buscar automáticamente mientras escribes
 input.addEventListener("input", () => {
 
     clearTimeout(timeoutBusqueda);
 
-    if(input.value.trim()===""){
-        results.innerHTML="";
+    if (input.value.trim() === "") {
+
+        results.innerHTML = "";
+
         return;
+
     }
 
-    timeoutBusqueda = setTimeout(buscarPelicula,300);
+    timeoutBusqueda = setTimeout(buscarPelicula, 300);
 
 });
 
-// Enter busca inmediatamente
-input.addEventListener("keydown",(e)=>{
+input.addEventListener("keydown", (e) => {
 
-    if(e.key==="Enter"){
+    if (e.key === "Enter") {
 
         clearTimeout(timeoutBusqueda);
 
@@ -36,32 +36,43 @@ input.addEventListener("keydown",(e)=>{
 
 });
 
-async function buscarPelicula(){
+async function buscarPelicula() {
 
-    const texto=input.value.trim();
+    const texto = input.value.trim();
 
-    if(!texto) return;
+    if (!texto) return;
 
-    results.innerHTML="Buscando...";
+    results.innerHTML = "Buscando...";
 
-    const url=`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}`;
+    const url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}&language=es-MX`;
 
-    try{
+    try {
 
-        const response=await fetch(url);
+        const response = await fetch(url);
 
-        const data=await response.json();
+        const data = await response.json();
 
-        mostrar(data.results);
+        await mostrar(data.results);
 
     }
-    catch(error){
+
+    catch (error) {
 
         console.error(error);
 
-        results.innerHTML="Error al consultar TMDB.";
+        results.innerHTML = "Error al consultar TMDB.";
 
     }
+
+}
+
+async function obtenerDetalles(id){
+
+    const url=`https://api.themoviedb.org/3/movie/${id}?api_key=${API_KEY}&language=es-MX`;
+
+    const response=await fetch(url);
+
+    return await response.json();
 
 }
 
@@ -71,7 +82,9 @@ async function copiarID(id){
 
         await navigator.clipboard.writeText(String(id));
 
-    }catch(e){
+    }
+
+    catch(e){
 
         console.error(e);
 
@@ -85,7 +98,7 @@ async function copiarID(id){
 
 }
 
-function mostrar(lista){
+async function mostrar(lista){
 
     results.innerHTML="";
 
@@ -97,7 +110,6 @@ function mostrar(lista){
 
     }
 
-    // Si solo encontró una película, copiar automáticamente.
     if(lista.length===1){
 
         copiarID(lista[0].id);
@@ -106,52 +118,103 @@ function mostrar(lista){
 
     }
 
-    lista.forEach(movie=>{
+    for(const movie of lista){
+
+        const detalles=await obtenerDetalles(movie.id);
 
         const poster=movie.poster_path
             ? `https://image.tmdb.org/t/p/w154${movie.poster_path}`
-            : "https://via.placeholder.com/70x105?text=No+Image";
+            : "https://via.placeholder.com/80x120?text=No+Image";
+                const tituloOriginal = detalles.original_title || movie.original_title || "";
 
-        const div=document.createElement("div");
+        const tituloEspanol = detalles.title || movie.title || "";
 
-        div.className="result";
+        const pais = detalles.production_countries.length
+            ? detalles.production_countries
+                .map(p => p.iso_3166_1)
+                .join(", ")
+            : "N/D";
 
-        div.innerHTML=`
+        const generos = detalles.genres.length
+            ? detalles.genres
+                .map(g => g.name)
+                .join(" • ")
+            : "N/D";
+
+        const div = document.createElement("div");
+
+        div.className = "result";
+
+        div.innerHTML = `
+
+        <div style="
+            display:flex;
+            gap:15px;
+            align-items:flex-start;
+        ">
+
+            <img
+                src="${poster}"
+                alt="${tituloOriginal}"
+                style="
+                    width:80px;
+                    border-radius:8px;
+                    flex-shrink:0;
+                "
+            >
 
             <div style="
                 display:flex;
-                align-items:center;
-                gap:15px;
+                flex-direction:column;
+                justify-content:center;
+                line-height:1.45;
             ">
 
-                <img
-                    src="${poster}"
-                    alt="${movie.title}"
-                    style="
-                        width:70px;
-                        border-radius:6px;
-                        flex-shrink:0;
-                    "
-                >
+                <div style="
+                    font-size:18px;
+                    font-weight:bold;
+                ">
+                    ${tituloOriginal}
+                </div>
+
+                <div style="
+                    color:#BEBEBE;
+                    margin-bottom:10px;
+                ">
+                    ${tituloEspanol}
+                </div>
 
                 <div>
 
-                    <strong>${movie.title}</strong><br>
+                    🆔 <b>${movie.id}</b>
 
-                    ${movie.release_date || "Sin fecha"}<br>
+                </div>
 
-                    TMDB ID: <strong>${movie.id}</strong>
+                <div>
+
+                    🌍 ${pais}
+
+                </div>
+
+                <div>
+
+                    🎭 ${generos}
 
                 </div>
 
             </div>
 
-        `;
+        </div>
 
-        div.addEventListener("click",()=>copiarID(movie.id));
+        `;
+                div.addEventListener("click", () => {
+
+            copiarID(movie.id);
+
+        });
 
         results.appendChild(div);
 
-    });
+    }
 
 }
