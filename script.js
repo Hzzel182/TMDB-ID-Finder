@@ -4,64 +4,120 @@ const buscar = document.getElementById("buscar");
 const input = document.getElementById("search");
 const results = document.getElementById("results");
 
+let timeoutBusqueda;
+
+// El botón sigue funcionando por si quieres usarlo
 buscar.addEventListener("click", buscarPelicula);
 
-input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-        buscarPelicula();
+// Buscar automáticamente mientras escribes
+input.addEventListener("input", () => {
+
+    clearTimeout(timeoutBusqueda);
+
+    if(input.value.trim()===""){
+        results.innerHTML="";
+        return;
     }
+
+    timeoutBusqueda = setTimeout(buscarPelicula,300);
+
 });
 
-async function buscarPelicula() {
+// Enter busca inmediatamente
+input.addEventListener("keydown",(e)=>{
 
-    const texto = input.value.trim();
+    if(e.key==="Enter"){
 
-    if (!texto) return;
+        clearTimeout(timeoutBusqueda);
 
-    results.innerHTML = "Buscando...";
+        buscarPelicula();
 
-    const url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}`;
+    }
 
-    try {
+});
 
-        const response = await fetch(url);
-        const data = await response.json();
+async function buscarPelicula(){
+
+    const texto=input.value.trim();
+
+    if(!texto) return;
+
+    results.innerHTML="Buscando...";
+
+    const url=`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}`;
+
+    try{
+
+        const response=await fetch(url);
+
+        const data=await response.json();
 
         mostrar(data.results);
 
-    } catch (error) {
+    }
+    catch(error){
 
         console.error(error);
 
-        results.innerHTML = "Error al consultar TMDB.";
+        results.innerHTML="Error al consultar TMDB.";
 
     }
 
 }
 
-function mostrar(lista) {
+async function copiarID(id){
 
-    results.innerHTML = "";
+    try{
 
-    if (!lista || lista.length === 0) {
+        await navigator.clipboard.writeText(String(id));
 
-        results.innerHTML = "No se encontraron resultados.";
+    }catch(e){
+
+        console.error(e);
+
+    }
+
+    results.innerHTML="";
+
+    input.value="";
+
+    input.focus();
+
+}
+
+function mostrar(lista){
+
+    results.innerHTML="";
+
+    if(!lista || lista.length===0){
+
+        results.innerHTML="No se encontraron resultados.";
 
         return;
 
     }
 
-    lista.forEach(movie => {
+    // Si solo encontró una película, copiar automáticamente.
+    if(lista.length===1){
 
-        const poster = movie.poster_path
+        copiarID(lista[0].id);
+
+        return;
+
+    }
+
+    lista.forEach(movie=>{
+
+        const poster=movie.poster_path
             ? `https://image.tmdb.org/t/p/w154${movie.poster_path}`
             : "https://via.placeholder.com/70x105?text=No+Image";
 
-        const div = document.createElement("div");
+        const div=document.createElement("div");
 
-        div.className = "result";
+        div.className="result";
 
-        div.innerHTML = `
+        div.innerHTML=`
+
             <div style="
                 display:flex;
                 align-items:center;
@@ -79,21 +135,20 @@ function mostrar(lista) {
                 >
 
                 <div>
+
                     <strong>${movie.title}</strong><br>
+
                     ${movie.release_date || "Sin fecha"}<br>
+
                     TMDB ID: <strong>${movie.id}</strong>
+
                 </div>
 
             </div>
+
         `;
 
-        div.onclick = async () => {
-
-            await navigator.clipboard.writeText(String(movie.id));
-
-            alert("TMDB ID copiado: " + movie.id);
-
-        };
+        div.addEventListener("click",()=>copiarID(movie.id));
 
         results.appendChild(div);
 
