@@ -6,61 +6,63 @@ const results = document.getElementById("results");
 
 let timeoutBusqueda;
 
-buscar.addEventListener("click", buscarPelicula);
+buscar.addEventListener("click", buscarPeliculas);
 
 input.addEventListener("input", () => {
 
     clearTimeout(timeoutBusqueda);
 
-    if (input.value.trim() === "") {
+    if(input.value.trim()===""){
 
-        results.innerHTML = "";
+        results.innerHTML="";
 
         return;
 
     }
 
-    timeoutBusqueda = setTimeout(buscarPelicula, 300);
+    timeoutBusqueda=setTimeout(buscarPeliculas,300);
 
 });
 
-input.addEventListener("keydown", (e) => {
+input.addEventListener("keydown",(e)=>{
 
-    if (e.key === "Enter") {
+    if(e.key==="Enter"){
 
         clearTimeout(timeoutBusqueda);
 
-        buscarPelicula();
+        buscarPeliculas();
 
     }
 
 });
 
-async function buscarPelicula() {
+async function buscarPeliculas(){
 
-    const texto = input.value.trim();
+    const texto=input.value.trim();
 
-    if (!texto) return;
+    if(!texto) return;
 
-    results.innerHTML = "Buscando...";
+    results.innerHTML="Buscando...";
 
-    const url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}&language=es-MX`;
+    try{
 
-    try {
+        const response=await fetch(
 
-        const response = await fetch(url);
+            `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(texto)}&language=es-MX`
 
-        const data = await response.json();
+        );
 
-        await mostrar(data.results);
+        const data=await response.json();
+
+        mostrarResultados(data.results);
 
     }
 
-    catch (error) {
+    catch(error){
 
         console.error(error);
 
-        results.innerHTML = "Error al consultar TMDB.";
+        results.innerHTML="Error al consultar TMDB.";
 
     }
 
@@ -68,19 +70,21 @@ async function buscarPelicula() {
 
 async function obtenerDetalles(id){
 
-    const url=`https://api.themoviedb.org/3/movie/${id}?api_key=${API_KEY}&language=es-MX`;
+    const response=await fetch(
 
-    const response=await fetch(url);
+        `https://api.themoviedb.org/3/movie/${id}?api_key=${API_KEY}&language=es-MX`
+
+    );
 
     return await response.json();
 
 }
 
-async function copiarID(id){
+async function copiar(texto){
 
     try{
 
-        await navigator.clipboard.writeText(String(id));
+        await navigator.clipboard.writeText(texto);
 
     }
 
@@ -90,6 +94,10 @@ async function copiarID(id){
 
     }
 
+}
+
+function limpiar(){
+
     results.innerHTML="";
 
     input.value="";
@@ -98,7 +106,7 @@ async function copiarID(id){
 
 }
 
-async function mostrar(lista){
+async function mostrarResultados(lista){
 
     results.innerHTML="";
 
@@ -110,106 +118,156 @@ async function mostrar(lista){
 
     }
 
-    if(lista.length===1){
-
-        copiarID(lista[0].id);
-
-        return;
-
-    }
-
     for(const movie of lista){
 
         const detalles=await obtenerDetalles(movie.id);
 
         const poster=movie.poster_path
             ? `https://image.tmdb.org/t/p/w154${movie.poster_path}`
-            : "https://via.placeholder.com/80x120?text=No+Image";
-                const tituloOriginal = detalles.original_title || movie.original_title || "";
+            : `https://via.placeholder.com/80x120?text=No+Image`;
+                const tituloOriginal = detalles.original_title || movie.original_title || movie.title;
 
-        const tituloEspanol = detalles.title || movie.title || "";
+        const tituloEspanol = detalles.title || movie.title;
 
         const pais = detalles.production_countries.length
             ? detalles.production_countries
-                .map(p => p.iso_3166_1)
-                .join(", ")
+                  .map(p => p.iso_3166_1)
+                  .join(", ")
             : "N/D";
 
         const generos = detalles.genres.length
             ? detalles.genres
-                .map(g => g.name)
-                .join(" • ")
+                  .map(g => g.name)
+                  .join(" • ")
             : "N/D";
 
-        const div = document.createElement("div");
+        const div=document.createElement("div");
 
-        div.className = "result";
+        div.className="result";
 
-        div.innerHTML = `
+        div.innerHTML=`
 
         <div style="
             display:flex;
-            gap:15px;
+            justify-content:space-between;
             align-items:flex-start;
+            gap:16px;
         ">
 
-            <img
-                src="${poster}"
-                alt="${tituloOriginal}"
-                style="
-                    width:80px;
-                    border-radius:8px;
-                    flex-shrink:0;
-                "
-            >
+            <div style="
+                display:flex;
+                gap:15px;
+                flex:1;
+            ">
+
+                <img
+                    src="${poster}"
+                    alt="${tituloOriginal}"
+                    style="
+                        width:80px;
+                        border-radius:8px;
+                        flex-shrink:0;
+                    "
+                >
+
+                <div>
+
+                    <div style="
+                        font-size:18px;
+                        font-weight:bold;
+                    ">
+                        ${tituloOriginal}
+                    </div>
+
+                    <div style="
+                        color:#BDBDBD;
+                        margin-bottom:8px;
+                    ">
+                        ${tituloEspanol}
+                    </div>
+
+                    <div>🆔 <b>${movie.id}</b></div>
+
+                    <div>🌍 ${pais}</div>
+
+                    <div>🎭 ${generos}</div>
+
+                </div>
+
+            </div>
 
             <div style="
                 display:flex;
                 flex-direction:column;
-                justify-content:center;
-                line-height:1.45;
+                gap:8px;
             ">
 
-                <div style="
-                    font-size:18px;
-                    font-weight:bold;
-                ">
-                    ${tituloOriginal}
-                </div>
+                <button class="copy-original"
+                    data-text="${tituloOriginal}"
+                    style="
+                        width:42px;
+                        height:42px;
+                        cursor:pointer;
+                    ">
+                    🇺🇸
+                </button>
 
-                <div style="
-                    color:#BEBEBE;
-                    margin-bottom:10px;
-                ">
-                    ${tituloEspanol}
-                </div>
+                <button class="copy-spanish"
+                    data-text="${tituloEspanol}"
+                    style="
+                        width:42px;
+                        height:42px;
+                        cursor:pointer;
+                    ">
+                    🇲🇽
+                </button>
 
-                <div>
-
-                    🆔 <b>${movie.id}</b>
-
-                </div>
-
-                <div>
-
-                    🌍 ${pais}
-
-                </div>
-
-                <div>
-
-                    🎭 ${generos}
-
-                </div>
+                <button class="copy-id"
+                    data-text="${movie.id}"
+                    style="
+                        width:42px;
+                        height:42px;
+                        cursor:pointer;
+                    ">
+                    🆔
+                </button>
 
             </div>
 
         </div>
 
         `;
-                div.addEventListener("click", () => {
+                const btnOriginal = div.querySelector(".copy-original");
+        const btnSpanish = div.querySelector(".copy-spanish");
+        const btnID = div.querySelector(".copy-id");
 
-            copiarID(movie.id);
+        btnOriginal.addEventListener("click", async (e) => {
+
+            e.stopPropagation();
+
+            await copiar(tituloOriginal);
+
+            limpiar();
+
+        });
+
+        btnSpanish.addEventListener("click", async (e) => {
+
+            e.stopPropagation();
+
+            await copiar(tituloEspanol);
+
+            limpiar();
+
+        });
+
+        btnID.addEventListener("click", async (e) => {
+
+            e.stopPropagation();
+
+            await copiar(String(movie.id));
+
+            limpiar();
 
         });
 
