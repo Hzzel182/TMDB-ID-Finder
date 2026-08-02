@@ -298,9 +298,9 @@ function createCardElement(item) {
     const btnES = createActionButton('ES', () => item.localName);
     const btnID = createActionButton('ID', () => String(item.id));
     
-    // IMG button now downloads the poster image directly with rounded corners & transparent background as a PNG file
+    // IMG button downloads the poster as .webp in quality 0.8 with rounded corners
     const btnIMG = createActionButton('IMG', async () => {
-        await downloadRoundedPoster(item);
+        await downloadRoundedWebpPoster(item);
         return item.originalPosterPath;
     });
 
@@ -320,9 +320,9 @@ function createCardElement(item) {
 }
 
 /**
- * Downloads poster as a PNG with rounded corners and transparent background
+ * Downloads poster as WebP format (quality 0.8) with rounded corners
  */
-async function downloadRoundedPoster(item) {
+async function downloadRoundedWebpPoster(item) {
     if (!item.originalPosterPath) return;
     try {
         await new Promise((resolve, reject) => {
@@ -334,7 +334,7 @@ async function downloadRoundedPoster(item) {
                 canvas.height = img.naturalHeight;
                 const ctx = canvas.getContext('2d');
                 
-                // Radius proportional to image size for clean rounded corners
+                // Proportional rounded corners radius
                 const radius = Math.min(canvas.width, canvas.height) * 0.04;
                 
                 ctx.beginPath();
@@ -356,6 +356,7 @@ async function downloadRoundedPoster(item) {
                 
                 ctx.drawImage(img, 0, 0);
                 
+                // Export as webp with 0.8 quality for lightweight and optimized files
                 canvas.toBlob((blob) => {
                     if (!blob) {
                         reject(new Error('Canvas blob creation failed'));
@@ -365,19 +366,19 @@ async function downloadRoundedPoster(item) {
                     const a = document.createElement('a');
                     a.href = url;
                     const safeName = item.originalName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                    a.download = `${safeName}_poster.png`;
+                    a.download = `${safeName}_poster.webp`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                     resolve();
-                }, 'image/png');
+                }, 'image/webp', 0.8);
             };
             img.onerror = () => reject(new Error('Image load failed'));
             img.src = item.originalPosterPath;
         });
     } catch (err) {
-        console.error('Error generating rounded poster:', err);
+        console.error('Error generating WebP poster:', err);
         window.open(item.originalPosterPath, '_blank');
     }
 }
@@ -394,7 +395,6 @@ function createActionButton(text, actionFn) {
         e.stopPropagation();
         const result = await actionFn();
         
-        // If it's not the IMG download button, copy the result to clipboard
         if (text !== 'IMG') {
             if (!result || result === '—') return;
             const success = await copyToClipboard(result);
@@ -402,7 +402,6 @@ function createActionButton(text, actionFn) {
                 triggerSuccessAnimation(btn, text);
             }
         } else {
-            // For IMG, trigger success animation upon triggering download
             triggerSuccessAnimation(btn, text);
         }
     });
