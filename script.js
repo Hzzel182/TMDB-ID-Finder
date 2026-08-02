@@ -18,6 +18,7 @@ const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 // DOM Elements
 const searchInput = document.getElementById('searchInput');
 const resultsContainer = document.getElementById('resultsContainer');
+const settingsBar = document.getElementById('settingsBar');
 const folderStatus = document.getElementById('folderStatus');
 const selectFolderBtn = document.getElementById('selectFolderBtn');
 
@@ -91,8 +92,7 @@ async function verifyPermission(fileHandle, readWrite) {
 // Initialize folder settings on load
 document.addEventListener('DOMContentLoaded', async () => {
     if (!window.showDirectoryPicker) {
-        folderStatus.textContent = 'Carpeta: Descargas (Android/Automático)';
-        selectFolderBtn.style.display = 'none';
+        if (settingsBar) settingsBar.style.display = 'none';
         return;
     }
 
@@ -382,6 +382,16 @@ function createCardElement(item) {
     const btnID = createActionButton('ID', () => `https://hzzel182.github.io/Cast/?id=${item.id}`);
     
     const btnIMG = createActionButton('IMG', async () => {
+        if (savedDirHandle && window.showDirectoryPicker) {
+            try {
+                const hasPermission = await verifyPermission(savedDirHandle, true);
+                if (!hasPermission) {
+                    savedDirHandle = null;
+                }
+            } catch (err) {
+                console.warn('Permission check failed:', err);
+            }
+        }
         await downloadRoundedWebpPoster(item);
         return item.originalPosterPath;
     });
@@ -402,8 +412,7 @@ function createCardElement(item) {
 }
 
 /**
- * Downloads poster resized to exactly 720x1080, WebP format (quality 0.8) with rounded corners
- * Supports custom saved directory handle with automatic fallback.
+ * Downloads poster resized to exactly 720x1080, WebP format with custom folder support
  */
 async function downloadRoundedWebpPoster(item) {
     if (!item.originalPosterPath) return;
@@ -450,16 +459,13 @@ async function downloadRoundedWebpPoster(item) {
 
                     if (savedDirHandle && window.showDirectoryPicker) {
                         try {
-                            const hasPermission = await verifyPermission(savedDirHandle, true);
-                            if (hasPermission) {
-                                const fileHandle = await savedDirHandle.getFileHandle(fileName, { create: true });
-                                const writable = await fileHandle.createWritable();
-                                await writable.write(blob);
-                                await writable.close();
-                                savedSuccessfully = true;
-                            }
+                            const fileHandle = await savedDirHandle.getFileHandle(fileName, { create: true });
+                            const writable = await fileHandle.createWritable();
+                            await writable.write(blob);
+                            await writable.close();
+                            savedSuccessfully = true;
                         } catch (dirErr) {
-                            console.warn('Fallback to standard download due to directory access error:', dirErr);
+                            console.warn('Folder write failed, falling back to standard download:', dirErr);
                         }
                     }
 
