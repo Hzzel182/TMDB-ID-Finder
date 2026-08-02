@@ -284,7 +284,9 @@ function createCardElement(item) {
 
     const btnEN = createActionButton('EN', () => item.originalName);
     const btnES = createActionButton('ES', () => item.localName);
-    const btnID = createActionButton('ID', () => String(item.id));
+    
+    // El botón ID ahora copia directamente el enlace completo listo para el widget de Notion
+    const btnID = createActionButton('ID', () => `https://hzzel182.github.io/Cast/?id=${item.id}`);
     
     const btnIMG = createActionButton('IMG', async () => {
         await downloadRoundedWebpPoster(item);
