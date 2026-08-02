@@ -47,6 +47,44 @@ body {
     letter-spacing: -0.025em;
 }
 
+.settings-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+}
+
+.folder-status {
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 1rem;
+}
+
+.settings-btn {
+    background-color: #2b2b2b;
+    color: var(--text-primary);
+    border: 1px solid #3d3d3d;
+    border-radius: 4px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.settings-btn:hover {
+    background-color: #3d3d3d;
+    border-color: #555;
+}
+
 .search-wrapper {
     width: 100%;
 }
