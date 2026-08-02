@@ -12,6 +12,9 @@ const POSTER_THUMB_URL = 'https://image.tmdb.org/t/p/w200';
 const searchCache = new Map();
 const detailCache = new Map();
 
+// Region display names formatter for full English country names
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
 // DOM Elements
 const searchInput = document.getElementById('searchInput');
 const resultsContainer = document.getElementById('resultsContainer');
@@ -81,8 +84,8 @@ async function performSearch(query) {
         return;
     }
 
-    try {
-        const url = `${BASE_URL}/search/multi?api_key=${API_KEY}&language=es-ES&query=${encodeURIComponent(query)}&page=1&include_adult=false`;
+try {
+        const url = `${BASE_URL}/search/multi?api_key=${API_KEY}&language=en-US&query=${encodeURIComponent(query)}&page=1&include_adult=false`;
         const response = await fetch(url, { signal: currentAbortController.signal });
         
         if (!response.ok) throw new Error('Error en la respuesta de la red');
@@ -106,7 +109,7 @@ async function performSearch(query) {
 }
 
 /**
- * Fetches specific item details to ensure complete and accurate metadata
+ * Fetches specific item details in English and Spanish, plus English-text posters
  */
 async function fetchItemDetails(id, mediaType) {
     const cacheKey = `${mediaType}_${id}`;
@@ -115,12 +118,17 @@ async function fetchItemDetails(id, mediaType) {
     }
 
     try {
-        const url = `${BASE_URL}/${mediaType}/${id}?api_key=${API_KEY}&language=es-ES`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Error fetching details');
-        const data = await response.json();
+        const [resEn, resEs, resImages] = await Promise.all([
+            fetch(`${BASE_URL}/${mediaType}/${id}?api_key=${API_KEY}&language=en-US`),
+            fetch(`${BASE_URL}/${mediaType}/${id}?api_key=${API_KEY}&language=es-ES`),
+            fetch(`${BASE_URL}/${mediaType}/${id}/images?api_key=${API_KEY}`)
+        ]);
+
+        const dataEn = resEn.ok ? await resEn.json() : {};
+        const dataEs = resEs.ok ? await resEs.json() : {};
+        const dataImages = resImages.ok ? await resImages.json() : {};
         
-        const formatted = formatItemData(data, mediaType);
+        const formatted = formatItemData(dataEn, dataEs, dataImages, mediaType);
         detailCache.set(cacheKey, formatted);
         return formatted;
     } catch (error) {
@@ -130,49 +138,88 @@ async function fetchItemDetails(id, mediaType) {
 }
 
 /**
- * Normalizes raw TMDB API response into a clean structure
+ * Normalizes raw TMDB API response into a clean structure with English names/posters and full country names
  */
-function formatItemData(raw, mediaType) {
+function formatItemData(dataEn, dataEs, dataImages, mediaType) {
     const isMovie = mediaType === 'movie';
     
-    const originalName = isMovie ? (raw.original_title || '—') : (raw.original_name || '—');
-    const localName = isMovie ? (raw.title || raw.original_title || '—') : (raw.name || raw.original_name || '—');
+    // Ensure English name for primary/EN button (no native foreign scripts like Japanese/Korean)
+    const englishName = isMovie ? (dataEn.title || dataEn.original_title || '—') : (dataEn.name || dataEn.original_name || '—');
     
-    const releaseDate = isMovie ? raw.release_date : raw.first_air_date;
+    // Proper Spanish localized title
+    const spanishName = isMovie ? (dataEs.title || dataEs.original_title || englishName) : (dataEs.name || dataEs.original_name || englishName);
+    
+    const releaseDate = isMovie ? (dataEn.release_date || dataEs.release_date) : (dataEn.first_air_date || dataEs.first_air_date);
     const year = releaseDate ? releaseDate.split('-')[0] : '—';
     
-    // Countries
+    // Full English country names (no abbreviations)
     let countries = '—';
-    if (raw.production_countries && raw.production_countries.length > 0) {
-        countries = raw.production_countries.map(c => c.iso_3166_1).join(', ');
-    } else if (raw.origin_country && raw.origin_country.length > 0) {
-        countries = raw.origin_country.join(', ');
+    const rawCountries = dataEn.production_countries || dataEs.production_countries || [];
+    const rawOrigin = dataEn.origin_country || dataEs.origin_country || [];
+    
+    if (rawCountries.length > 0) {
+        const countryNames = rawCountries.map(c => {
+            try {
+                return regionNames.of(c.iso_3166_1) || c.iso_3166_1;
+            } catch {
+                return c.iso_3166_1;
+            }
+        });
+        countries = countryNames.join(', ');
+    } else if (rawOrigin.length > 0) {
+        const countryNames = rawOrigin.map(c => {
+            try {
+                return regionNames.of(c) || c;
+            } catch {
+                return c;
+            }
+        });
+        countries = countryNames.join(', ');
     }
 
-    // Genres
+    // Genres (localized to Spanish via dataEs)
     let genres = '—';
-    if (raw.genres && raw.genres.length > 0) {
-        genres = raw.genres.map(g => g.name).join(' • ');
+    const genresSource = (dataEs.genres && dataEs.genres.length > 0) ? dataEs.genres : (dataEn.genres || []);
+    if (genresSource.length > 0) {
+        genres = genresSource.map(g => g.name).join(' • ');
     }
 
     const type = isMovie ? 'Movie' : 'TV Series';
-    const posterPath = raw.poster_path ? `${POSTER_THUMB_URL}${raw.poster_path}` : '';
-    const originalPosterPath = raw.poster_path ? `${IMAGE_BASE_URL}${raw.poster_path}` : '';
+
+    // Poster with English lettering/text preferred
+    let posterPath = '';
+    let originalPosterPath = '';
+
+    if (dataImages && dataImages.posters && dataImages.posters.length > 0) {
+        const enPoster = dataImages.posters.find(p => p.iso_639_1 === 'en');
+        const nullPoster = dataImages.posters.find(p => p.iso_639_1 === null);
+        const selectedPoster = enPoster || nullPoster || dataImages.posters[0];
+
+        if (selectedPoster && selectedPoster.file_path) {
+            posterPath = `${POSTER_THUMB_URL}${selectedPoster.file_path}`;
+            originalPosterPath = `${IMAGE_BASE_URL}${selectedPoster.file_path}`;
+        }
+    }
+
+    // Fallback if images endpoint didn't provide paths
+    if (!posterPath && dataEn.poster_path) {
+        posterPath = `${POSTER_THUMB_URL}${dataEn.poster_path}`;
+        originalPosterPath = `${IMAGE_BASE_URL}${dataEn.poster_path}`;
+    }
 
     return {
-        id: raw.id || '—',
-        originalName,
-        localName,
+        id: dataEn.id || dataEs.id || '—',
+        originalName: englishName,
+        localName: spanishName,
         year,
         countries,
         genres,
         type,
         posterPath,
         originalPosterPath,
-        // Prepared fields for future scalability requirements
-        imdbId: raw.imdb_id || '—',
-        runtime: isMovie ? (raw.runtime ? `${raw.runtime} min` : '—') : (raw.episode_run_time?.[0] ? `${raw.episode_run_time[0]} min` : '—'),
-        backdropPath: raw.backdrop_path ? `${IMAGE_BASE_URL}${raw.backdrop_path}` : ''
+        imdbId: dataEn.imdb_id || dataEs.imdb_id || '—',
+        runtime: isMovie ? (dataEn.runtime ? `${dataEn.runtime} min` : '—') : (dataEn.episode_run_time?.[0] ? `${dataEn.episode_run_time[0]} min` : '—'),
+        backdropPath: dataEn.backdrop_path ? `${IMAGE_BASE_URL}${dataEn.backdrop_path}` : ''
     };
 }
 
