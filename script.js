@@ -107,7 +107,7 @@ async function performSearch(query) {
 }
 
 /**
- * Fetches specific item details in English and Spanish, plus English-text posters
+ * Fetches specific item details in English and Latin American Spanish (es-MX), plus English-text posters
  */
 async function fetchItemDetails(id, mediaType) {
     const cacheKey = `${mediaType}_${id}`;
@@ -118,7 +118,7 @@ async function fetchItemDetails(id, mediaType) {
     try {
         const [resEn, resEs, resImages] = await Promise.all([
             fetch(`${BASE_URL}/${mediaType}/${id}?api_key=${API_KEY}&language=en-US`),
-            fetch(`${BASE_URL}/${mediaType}/${id}?api_key=${API_KEY}&language=es-ES`),
+            fetch(`${BASE_URL}/${mediaType}/${id}?api_key=${API_KEY}&language=es-MX`),
             fetch(`${BASE_URL}/${mediaType}/${id}/images?api_key=${API_KEY}`)
         ]);
 
